@@ -75,6 +75,7 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
     private val toolbar: Toolbar get() = playerControlsBinding.toolbar
     private val fullscreenSwitcher: ImageButton get() = playerControlsBinding.fullscreenSwitcher
     private var playerMenus: PlayerMenus? = null
+    private var playerTabletopHelper: PlayerTabletopHelper? = null
 
     private lateinit var playerFullscreenHelper: PlayerFullscreenHelper
     lateinit var playerLockScreenHelper: PlayerLockScreenHelper
@@ -222,6 +223,12 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
 
         playerLockScreenHelper = PlayerLockScreenHelper(this, playerBinding, orientationListener)
         playerGestureHelper = PlayerGestureHelper(this, playerBinding, playerLockScreenHelper)
+        playerTabletopHelper = PlayerTabletopHelper(requireActivity(), playerBinding) {
+            // Release the automatic landscape request, but preserve an explicit playback lock.
+            if (playerView.useController) {
+                requireActivity().requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            }
+        }.also { it.start(viewLifecycleOwner) }
 
         // Handle fullscreen switcher
         fullscreenSwitcher.setOnClickListener {
@@ -276,6 +283,10 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
      * For landscape videos, additionally the screen gets rotated.
      */
     private fun toggleFullscreen() {
+        if (playerTabletopHelper?.isTabletop == true) {
+            playerFullscreenHelper.toggleFullscreen()
+            return
+        }
         val videoTrack = currentVideoStream
         if (videoTrack == null || videoTrack.isLandscape) {
             val current = resources.configuration.orientation
@@ -409,6 +420,7 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
     }
 
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean) {
+        playerTabletopHelper?.onPictureInPictureChanged(isInPictureInPictureMode)
         playerView.useController = !isInPictureInPictureMode
         if (isInPictureInPictureMode) {
             playerMenus?.dismissPlaybackInfo()
@@ -432,6 +444,8 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
     }
 
     override fun onDestroyView() {
+        playerTabletopHelper?.dispose()
+        playerTabletopHelper = null
         super.onDestroyView()
         // Detach player from PlayerView
         playerView.player = null
