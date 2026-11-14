@@ -21,7 +21,9 @@ internal class PlayerTabletopHelper(
     private val onEnterTabletop: () -> Unit,
     private val onPostureAvailable: () -> Unit,
 ) {
-    private var feature: FoldingFeature? = null
+    private var halfOpenFeature: FoldingFeature? = null
+    private val feature: FoldingFeature?
+        get() = halfOpenFeature?.takeIf { it.orientation == FoldingFeature.Orientation.HORIZONTAL }
     private var inPictureInPicture = false
     private var disposed = false
     private val originalPlayerParams = FrameLayout.LayoutParams(binding.playerView.layoutParams as FrameLayout.LayoutParams)
@@ -40,15 +42,14 @@ internal class PlayerTabletopHelper(
         owner.lifecycleScope.launch {
             owner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 WindowInfoTracker.getOrCreate(activity).windowLayoutInfo(activity).catch {
-                    feature = null
+                    halfOpenFeature = null
                     hasPostureInfo = true
                     update()
                     onPostureAvailable()
                 }.collect { info ->
                     hasPostureInfo = true
-                    feature = info.displayFeatures.filterIsInstance<FoldingFeature>().firstOrNull {
-                        it.state == FoldingFeature.State.HALF_OPENED &&
-                            it.orientation == FoldingFeature.Orientation.HORIZONTAL
+                    halfOpenFeature = info.displayFeatures.filterIsInstance<FoldingFeature>().firstOrNull {
+                        it.state == FoldingFeature.State.HALF_OPENED
                     }
                     update()
                     onPostureAvailable()
@@ -56,6 +57,10 @@ internal class PlayerTabletopHelper(
             }
         }
     }
+
+    fun hasTabletopFold(windowLandscape: Boolean): Boolean = halfOpenFeature?.let {
+        TabletopRotationPolicy.matchesTabletopAxis(windowLandscape, it.orientation == FoldingFeature.Orientation.HORIZONTAL)
+    } == true
 
     fun onPictureInPictureChanged(enabled: Boolean) {
         inPictureInPicture = enabled
