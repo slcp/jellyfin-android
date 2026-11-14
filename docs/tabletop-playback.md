@@ -51,3 +51,28 @@ Physical playback and UI transitions have not yet been validated. Before release
 
 An emulator can check geometry and lifecycle, but cannot prove Motorola hinge
 reporting or physical-device playback. The local VM has no KVM device exposed.
+
+## Fullscreen-to-tabletop follow-up
+
+Stuart confirmed basic tabletop playback on a Razr50Ultra in a quick physical
+test. Fullscreen requested before folding left the app in landscape even though
+the phone was physically portrait, with system auto-rotate disabled.
+
+Additional commits retain HALF_OPENED hinge information even while the app is in
+landscape. The existing SmartOrientationListener now exposes an optional raw
+sensor callback before its auto-rotate guard. The player combines a confident
+portrait reading, the expected clamshell hinge axis in the current window, and
+an app landscape request before requesting portrait. A naturally book-style fold,
+physical landscape, unknown orientation, PiP and playback lock do not trigger this
+correction. Listener enable/disable invalidates cached sensor readings, so unlock
+waits for fresh evidence. The existing portrait-angle tolerance is reused.
+
+This uses the existing sensor and lifecycle; no new sensor polling, dependencies
+or player-view reparenting. Unknown readings deliberately retain the current
+orientation, which may defer correction if the phone sensor is nearly flat.
+
+Follow-up device checks: fullscreen while flat then portrait tabletop with
+auto-rotate on/off; physically landscape half-fold; playback lock/unlock after
+rotating the phone; PiP transitions. The rebuilt follow-up still needs these
+physical checks. Regression tests cover the rotation decision guards and hinge
+axis mapping independently of Android UI classes.
