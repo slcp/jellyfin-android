@@ -26,6 +26,8 @@ internal class PlayerTabletopHelper(
     private var disposed = false
     private val originalPlayerParams = FrameLayout.LayoutParams(binding.playerView.layoutParams as FrameLayout.LayoutParams)
     private val originalOverlayParams = FrameLayout.LayoutParams(binding.playerOverlay.layoutParams as FrameLayout.LayoutParams)
+    val hasTabletopPosture: Boolean
+        get() = feature != null
     var hasPostureInfo = false
         private set
     var isTabletop = false

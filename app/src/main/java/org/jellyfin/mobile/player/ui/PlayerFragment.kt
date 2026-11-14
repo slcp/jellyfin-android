@@ -248,7 +248,7 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
         val helper = playerTabletopHelper ?: return
         if (!pendingAutomaticLandscape || !helper.hasPostureInfo) return
         pendingAutomaticLandscape = false
-        if (!helper.isTabletop) {
+        if (!helper.hasTabletopPosture) {
             requireActivity().requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         }
     }
