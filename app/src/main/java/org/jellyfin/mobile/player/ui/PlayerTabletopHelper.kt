@@ -19,12 +19,15 @@ internal class PlayerTabletopHelper(
     private val activity: Activity,
     private val binding: FragmentPlayerBinding,
     private val onEnterTabletop: () -> Unit,
+    private val onPostureAvailable: () -> Unit,
 ) {
     private var feature: FoldingFeature? = null
     private var inPictureInPicture = false
     private var disposed = false
     private val originalPlayerParams = FrameLayout.LayoutParams(binding.playerView.layoutParams as FrameLayout.LayoutParams)
     private val originalOverlayParams = FrameLayout.LayoutParams(binding.playerOverlay.layoutParams as FrameLayout.LayoutParams)
+    var hasPostureInfo = false
+        private set
     var isTabletop = false
         private set
 
@@ -36,13 +39,17 @@ internal class PlayerTabletopHelper(
             owner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 WindowInfoTracker.getOrCreate(activity).windowLayoutInfo(activity).catch {
                     feature = null
+                    hasPostureInfo = true
                     update()
+                    onPostureAvailable()
                 }.collect { info ->
+                    hasPostureInfo = true
                     feature = info.displayFeatures.filterIsInstance<FoldingFeature>().firstOrNull {
                         it.state == FoldingFeature.State.HALF_OPENED &&
                             it.orientation == FoldingFeature.Orientation.HORIZONTAL
                     }
                     update()
+                    onPostureAvailable()
                 }
             }
         }

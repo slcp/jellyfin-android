@@ -15,7 +15,8 @@ The player itself is the bounded container. Media3 zoom can enlarge its internal
 surface, but PlayerView clips it within the upper pane. Existing controller
 visibility, timeout, playback lock, menus and gesture dimensions stay owned by
 the existing helpers. The fullscreen button changes system bars while tabletop
-is active instead of forcing landscape. Entering tabletop releases an automatic
+is active instead of forcing landscape. Automatic landscape on startup waits for
+the first posture result so it cannot preempt fold detection. Entering tabletop releases an automatic
 orientation request only when playback controls are not locked.
 
 The deliberate tradeoff is that controls occupy the upper pane. Moving them below

@@ -76,6 +76,7 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
     private val fullscreenSwitcher: ImageButton get() = playerControlsBinding.fullscreenSwitcher
     private var playerMenus: PlayerMenus? = null
     private var playerTabletopHelper: PlayerTabletopHelper? = null
+    private var pendingAutomaticLandscape = false
 
     private lateinit var playerFullscreenHelper: PlayerFullscreenHelper
     lateinit var playerLockScreenHelper: PlayerLockScreenHelper
@@ -121,12 +122,14 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
             requireContext().toast(safeMessage)
         }
         viewModel.queueManager.currentMediaSource.observe(this) { mediaSource ->
+            pendingAutomaticLandscape = false
             if (mediaSource.selectedVideoStream?.isLandscape == false) {
                 // For portrait videos, immediately enable fullscreen
                 playerFullscreenHelper.enableFullscreen()
             } else if (appPreferences.exoPlayerStartLandscapeVideoInLandscape) {
-                // Auto-switch to landscape for landscape videos if enabled
-                requireActivity().requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                // Wait for fold detection so startup cannot rotate away from tabletop posture.
+                pendingAutomaticLandscape = true
+                applyPendingAutomaticLandscape()
             }
 
             // Update title and player menus
@@ -223,16 +226,30 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
 
         playerLockScreenHelper = PlayerLockScreenHelper(this, playerBinding, orientationListener)
         playerGestureHelper = PlayerGestureHelper(this, playerBinding, playerLockScreenHelper)
-        playerTabletopHelper = PlayerTabletopHelper(requireActivity(), playerBinding) {
-            // Release the automatic landscape request, but preserve an explicit playback lock.
-            if (playerView.useController) {
-                requireActivity().requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-            }
-        }.also { it.start(viewLifecycleOwner) }
+        playerTabletopHelper = PlayerTabletopHelper(
+            activity = requireActivity(),
+            binding = playerBinding,
+            onEnterTabletop = {
+                // Release automatic landscape, but preserve an explicit playback lock.
+                if (playerView.useController) {
+                    requireActivity().requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                }
+            },
+            onPostureAvailable = ::applyPendingAutomaticLandscape,
+        ).also { it.start(viewLifecycleOwner) }
 
         // Handle fullscreen switcher
         fullscreenSwitcher.setOnClickListener {
             toggleFullscreen()
+        }
+    }
+
+    private fun applyPendingAutomaticLandscape() {
+        val helper = playerTabletopHelper ?: return
+        if (!pendingAutomaticLandscape || !helper.hasPostureInfo) return
+        pendingAutomaticLandscape = false
+        if (!helper.isTabletop) {
+            requireActivity().requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         }
     }
 
