@@ -75,6 +75,9 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
     private val toolbar: Toolbar get() = playerControlsBinding.toolbar
     private val fullscreenSwitcher: ImageButton get() = playerControlsBinding.fullscreenSwitcher
     private var playerMenus: PlayerMenus? = null
+    private var playerTabletopHelper: PlayerTabletopHelper? = null
+    private var pendingAutomaticLandscape = false
+    private var physicalOrientation = OrientationEventListener.ORIENTATION_UNKNOWN
 
     private lateinit var playerFullscreenHelper: PlayerFullscreenHelper
     lateinit var playerLockScreenHelper: PlayerLockScreenHelper
@@ -91,7 +94,12 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
      * If the requestedOrientation was reset directly after setting it in the fullscreenSwitcher click handler,
      * the orientation would get reverted before the user had any chance to rotate the device to the desired position.
      */
-    private val orientationListener: OrientationEventListener by lazy { SmartOrientationListener(requireActivity()) }
+    private val orientationListener: OrientationEventListener by lazy {
+        SmartOrientationListener(requireActivity()) { orientation ->
+            physicalOrientation = orientation
+            restorePortraitForTabletop()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -120,12 +128,14 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
             requireContext().toast(safeMessage)
         }
         viewModel.queueManager.currentMediaSource.observe(this) { mediaSource ->
+            pendingAutomaticLandscape = false
             if (mediaSource.selectedVideoStream?.isLandscape == false) {
                 // For portrait videos, immediately enable fullscreen
                 playerFullscreenHelper.enableFullscreen()
             } else if (appPreferences.exoPlayerStartLandscapeVideoInLandscape) {
-                // Auto-switch to landscape for landscape videos if enabled
-                requireActivity().requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                // Wait for fold detection so startup cannot rotate away from tabletop posture.
+                pendingAutomaticLandscape = true
+                applyPendingAutomaticLandscape()
             }
 
             // Update title and player menus
@@ -222,10 +232,54 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
 
         playerLockScreenHelper = PlayerLockScreenHelper(this, playerBinding, orientationListener)
         playerGestureHelper = PlayerGestureHelper(this, playerBinding, playerLockScreenHelper)
+        setupTabletopPlayback()
 
         // Handle fullscreen switcher
         fullscreenSwitcher.setOnClickListener {
             toggleFullscreen()
+        }
+    }
+
+    private fun setupTabletopPlayback() {
+        playerTabletopHelper = PlayerTabletopHelper(
+            activity = requireActivity(),
+            binding = playerBinding,
+            onEnterTabletop = {
+                // Release automatic landscape, but preserve an explicit playback lock.
+                if (playerView.useController && requireActivity().requestedOrientation != ActivityInfo.SCREEN_ORIENTATION_PORTRAIT) {
+                    requireActivity().requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                }
+            },
+            onPostureAvailable = {
+                applyPendingAutomaticLandscape()
+                restorePortraitForTabletop()
+            },
+        ).also { it.start(viewLifecycleOwner) }
+    }
+
+    private fun restorePortraitForTabletop() {
+        val helper = playerTabletopHelper ?: return
+        val binding = _playerBinding ?: return
+        val playerActivity = activity ?: return
+        val shouldRotate = TabletopRotationPolicy.shouldRequestPortrait(
+            halfOpen = helper.hasTabletopFold(isLandscape()),
+            physicallyPortrait = physicalOrientation in Constants.ORIENTATION_PORTRAIT_RANGE,
+            appRequestedLandscape = playerActivity.requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE,
+            playbackLocked = !binding.playerView.useController,
+            inPictureInPicture = AndroidVersion.isAtLeastN && playerActivity.isInPictureInPictureMode,
+        )
+        if (shouldRotate) {
+            // Explicit portrait is needed even when system auto-rotate is disabled.
+            playerActivity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
+    }
+
+    private fun applyPendingAutomaticLandscape() {
+        val helper = playerTabletopHelper ?: return
+        if (!pendingAutomaticLandscape || !helper.hasPostureInfo) return
+        pendingAutomaticLandscape = false
+        if (!helper.hasTabletopPosture) {
+            requireActivity().requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         }
     }
 
@@ -276,6 +330,10 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
      * For landscape videos, additionally the screen gets rotated.
      */
     private fun toggleFullscreen() {
+        if (playerTabletopHelper?.isTabletop == true) {
+            playerFullscreenHelper.toggleFullscreen()
+            return
+        }
         val videoTrack = currentVideoStream
         if (videoTrack == null || videoTrack.isLandscape) {
             val current = resources.configuration.orientation
@@ -409,6 +467,7 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
     }
 
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean) {
+        playerTabletopHelper?.onPictureInPictureChanged(isInPictureInPictureMode)
         playerView.useController = !isInPictureInPictureMode
         if (isInPictureInPictureMode) {
             playerMenus?.dismissPlaybackInfo()
@@ -429,9 +488,12 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
     override fun onStop() {
         super.onStop()
         orientationListener.disable()
+        physicalOrientation = OrientationEventListener.ORIENTATION_UNKNOWN
     }
 
     override fun onDestroyView() {
+        playerTabletopHelper?.dispose()
+        playerTabletopHelper = null
         super.onDestroyView()
         // Detach player from PlayerView
         playerView.player = null
