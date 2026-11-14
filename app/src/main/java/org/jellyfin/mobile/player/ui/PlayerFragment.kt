@@ -226,6 +226,15 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
 
         playerLockScreenHelper = PlayerLockScreenHelper(this, playerBinding, orientationListener)
         playerGestureHelper = PlayerGestureHelper(this, playerBinding, playerLockScreenHelper)
+        setupTabletopPlayback()
+
+        // Handle fullscreen switcher
+        fullscreenSwitcher.setOnClickListener {
+            toggleFullscreen()
+        }
+    }
+
+    private fun setupTabletopPlayback() {
         playerTabletopHelper = PlayerTabletopHelper(
             activity = requireActivity(),
             binding = playerBinding,
@@ -237,11 +246,6 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
             },
             onPostureAvailable = ::applyPendingAutomaticLandscape,
         ).also { it.start(viewLifecycleOwner) }
-
-        // Handle fullscreen switcher
-        fullscreenSwitcher.setOnClickListener {
-            toggleFullscreen()
-        }
     }
 
     private fun applyPendingAutomaticLandscape() {

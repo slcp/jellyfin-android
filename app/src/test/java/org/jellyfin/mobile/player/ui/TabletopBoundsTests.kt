@@ -13,7 +13,7 @@ class TabletopBoundsTests {
 
     @Test
     fun restoresNormalLayoutForUnsupportedPostureAndPictureInPicture() {
-        assertNull(height(tabletop = false))
+        assertNull(TabletopBounds.upperPaneHeight(0, 2000, null, null, false))
         assertNull(height(pip = true))
     }
 
@@ -33,7 +33,6 @@ class TabletopBoundsTests {
         viewHeight: Int = 2000,
         hingeTop: Int = 1000,
         hingeBottom: Int = hingeTop,
-        tabletop: Boolean = true,
         pip: Boolean = false,
-    ) = TabletopBounds.upperPaneHeight(top, viewHeight, hingeTop, hingeBottom, tabletop, pip)
+    ) = TabletopBounds.upperPaneHeight(top, viewHeight, hingeTop, hingeBottom, pip)
 }

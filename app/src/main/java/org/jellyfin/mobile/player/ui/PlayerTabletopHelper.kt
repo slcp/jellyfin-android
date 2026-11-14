@@ -76,9 +76,8 @@ internal class PlayerTabletopHelper(
         val height = TabletopBounds.upperPaneHeight(
             viewTop = location[1],
             viewHeight = binding.root.height,
-            hingeTop = fold?.bounds?.top ?: 0,
-            hingeBottom = fold?.bounds?.bottom ?: 0,
-            isTabletop = fold != null,
+            hingeTop = fold?.bounds?.top,
+            hingeBottom = fold?.bounds?.bottom,
             isInPictureInPicture = inPictureInPicture,
         )
         if (height == null) {

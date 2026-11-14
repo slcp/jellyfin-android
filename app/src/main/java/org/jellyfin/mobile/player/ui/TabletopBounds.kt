@@ -5,12 +5,12 @@ internal object TabletopBounds {
     fun upperPaneHeight(
         viewTop: Int,
         viewHeight: Int,
-        hingeTop: Int,
-        hingeBottom: Int,
-        isTabletop: Boolean,
+        hingeTop: Int?,
+        hingeBottom: Int?,
         isInPictureInPicture: Boolean,
     ): Int? {
-        if (!isTabletop || isInPictureInPicture || viewHeight <= 0 || hingeBottom < hingeTop) return null
+        if (isInPictureInPicture || viewHeight <= 0) return null
+        if (hingeTop == null || hingeBottom == null || hingeBottom < hingeTop) return null
         val offset = hingeTop.toLong() - viewTop
         val bottom = hingeBottom.toLong() - viewTop
         // Require usable space on both sides; never retain an old split for invalid geometry.
